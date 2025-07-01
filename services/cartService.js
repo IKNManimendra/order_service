@@ -1,13 +1,43 @@
-// services/cartService.js
 const pool = require('../data/db');
+const axios = require('axios');
 
 const getCartItems = async (userId) => {
     const result = await pool.query(
-        `SELECT * FROM cart_items WHERE user_id = $1`,
+        `SELECT game_id, quantity FROM cart_items WHERE user_id = $1`,
         [userId]
     );
-    return result.rows;
+
+    const rawItems = result.rows;
+    const detailedItems = [];
+
+    for (const item of rawItems) {
+        try {
+            const gameRes = await axios.get(`http://localhost:3001/api/games/${item.game_id}`);
+            const game = gameRes.data;
+            const priceString = game.price;
+            const formattedPrice = parseFloat(priceString.replace('$', ''));
+
+            detailedItems.push({
+                game_id: item.game_id,
+                quantity: item.quantity,
+                name: game.name,
+                price: game.price,
+                total: `$` + formattedPrice * item.quantity
+            });
+        } catch (err) {
+            console.error(`Game ${item.game_id} fetch failed: ${err.message}`);
+            detailedItems.push({
+                game_id: item.game_id,
+                quantity: item.quantity,
+                name: `Game #${item.game_id}`,
+                price: null,
+                total: null
+            });
+        }
+    }
+    return detailedItems;
 };
+
 
 const addToCart = async (user_id, game_id, quantity) => {
     const existing = await pool.query(

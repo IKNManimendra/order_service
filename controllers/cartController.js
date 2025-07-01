@@ -1,7 +1,6 @@
-// controllers/cartController.js
 const cartService = require('../services/cartService');
 
-// 1. Get user's cart
+// Get user's cart
 const getCartItems = async (req, res) => {
     const userId = parseInt(req.params.userId);
     try {
@@ -12,7 +11,7 @@ const getCartItems = async (req, res) => {
     }
 };
 
-// 2. Add to cart
+// Add to cart
 const addItemToCart = async (req, res) => {
     const { user_id, game_id, quantity } = req.body;
     try {
@@ -23,10 +22,15 @@ const addItemToCart = async (req, res) => {
     }
 };
 
-// 3. Remove item
+// Remove item
 const removeItemFromCart = async (req, res) => {
     const { user_id, game_id } = req.body;
+
     try {
+        if (!user_id || !game_id) {
+            return res.status(400).json({ error: 'user_id and game_id are required' });
+        }
+
         await cartService.removeFromCart(user_id, game_id);
         res.json({ message: 'Item removed from cart' });
     } catch (err) {
@@ -34,7 +38,8 @@ const removeItemFromCart = async (req, res) => {
     }
 };
 
-// 4. Clear cart
+
+// Clear cart
 const clearCart = async (req, res) => {
     const userId = parseInt(req.params.userId);
     try {

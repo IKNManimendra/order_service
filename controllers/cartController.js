@@ -1,58 +1,56 @@
 const cartService = require('../services/cartService');
 
-// Get user's cart
-const getCartItems = async (req, res) => {
-    const userId = parseInt(req.params.userId);
+const addToCart = async (req, res) => {
+    console.log('Add to Cart payload from controller before try:', req.body);
     try {
-        const items = await cartService.getCartItems(userId);
-        res.json(items);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-};
-
-// Add to cart
-const addItemToCart = async (req, res) => {
-    const { user_id, game_id, quantity } = req.body;
-    try {
-        const item = await cartService.addToCart(user_id, game_id, quantity);
-        res.json(item);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-};
-
-// Remove item
-const removeItemFromCart = async (req, res) => {
-    const { user_id, game_id } = req.body;
-
-    try {
-        if (!user_id || !game_id) {
-            return res.status(400).json({ error: 'user_id and game_id are required' });
+        const { user_id, game_id, quantity } = req.body;
+        if (!user_id || !game_id || !quantity) {
+            return res.status(400).json({ error: 'user_id, game_id, and quantity are required' });
         }
 
-        await cartService.removeFromCart(user_id, game_id);
-        res.json({ message: 'Item removed from cart' });
+        console.log('Add to Cart payload from controller:', req.body);
+
+        const updatedItem = await cartService.addToCart({ user_id, game_id, quantity });
+
+        res.status(200).json(updatedItem.rows[0]);
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        console.error('Error adding to cart:', err.message);
+        res.status(500).json({ error: 'Failed to add to cart' });
     }
 };
 
-
-// Clear cart
-const clearCart = async (req, res) => {
-    const userId = parseInt(req.params.userId);
+const getCart = async (req, res) => {
     try {
-        await cartService.clearCart(userId);
-        res.json({ message: 'Cart cleared' });
+        const user_id = req.params.user_id;
+        if (!user_id) {
+            return res.status(400).json({ error: 'user_id is required' });
+        }
+
+        const cartItems = await cartService.getCartByUser(user_id);
+        res.status(200).json(cartItems);
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        console.error('Error getting cart:', err.message);
+        res.status(500).json({ error: 'Failed to get cart' });
+    }
+};
+
+const clearCart = async (req, res) => {
+    try {
+        const user_id = req.params.user_id;
+        if (!user_id) {
+            return res.status(400).json({ error: 'user_id is required' });
+        }
+
+        await cartService.clearCart(user_id);
+        res.status(200).json({ message: 'Cart cleared' });
+    } catch (err) {
+        console.error('Error clearing cart:', err.message);
+        res.status(500).json({ error: 'Failed to clear cart' });
     }
 };
 
 module.exports = {
-    getCartItems,
-    addItemToCart,
-    removeItemFromCart,
-    clearCart
+    addToCart,
+    getCart,
+    clearCart,
 };

@@ -1,0 +1,85 @@
+# Namespace for isolation
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: lugx-order
+---
+# Secret for order-db credentials
+apiVersion: v1
+kind: Secret
+metadata:
+  name: order-db-secret
+  namespace: lugx-order
+type: Opaque
+data:
+  POSTGRES_USER: b3JkZXJ1c2Vy # base64 for "orderuser"
+  POSTGRES_PASSWORD: b3JkZXJwYXNz # base64 for "orderpass"
+---
+# Persistent Volume Claim for data
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: order-postgres-pvc
+  namespace: lugx-order
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+# Deployment for PostgreSQL with PVC and secret-based env
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-postgres
+  namespace: lugx-order
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: order-postgres
+  template:
+    metadata:
+      labels:
+        app: order-postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:14
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              value: order_db
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: order-db-secret
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: order-db-secret
+                  key: POSTGRES_PASSWORD
+          volumeMounts:
+            - name: postgres-storage
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: postgres-storage
+          persistentVolumeClaim:
+            claimName: order-postgres-pvc
+---
+# Internal ClusterIP Service for PostgreSQL
+apiVersion: v1
+kind: Service
+metadata:
+  name: order-postgres-service
+  namespace: lugx-order
+spec:
+  type: ClusterIP
+  selector:
+    app: order-postgres
+  ports:
+    - port: 5432
+      targetPort: 5432

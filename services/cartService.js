@@ -1,87 +1,60 @@
 const pool = require('../data/db');
 const axios = require('axios');
+const GAME_SERVICE_URL = process.env.GAME_SERVICE_URL || "http://lugx-game-service:30001";
 
-const getCartItems = async (userId) => {
+// Correct: Add or update cart item
+const addToCart = async ({ user_id, game_id, quantity }) => {
+    console.log('AddToCart Service received:', { user_id, game_id, quantity });
+
     const result = await pool.query(
-        `SELECT game_id, quantity FROM cart_items WHERE user_id = $1`,
-        [userId]
-    );
-
-    const rawItems = result.rows;
-    const detailedItems = [];
-
-    for (const item of rawItems) {
-        try {
-            const gameRes = await axios.get(`http://localhost:3001/api/games/${item.game_id}`);
-            const game = gameRes.data;
-            const priceString = game.price;
-            const formattedPrice = parseFloat(priceString.replace('$', ''));
-
-            detailedItems.push({
-                game_id: item.game_id,
-                quantity: item.quantity,
-                name: game.name,
-                price: game.price,
-                total: `$` + formattedPrice * item.quantity
-            });
-        } catch (err) {
-            console.error(`Game ${item.game_id} fetch failed: ${err.message}`);
-            detailedItems.push({
-                game_id: item.game_id,
-                quantity: item.quantity,
-                name: `Game #${item.game_id}`,
-                price: null,
-                total: null
-            });
-        }
-    }
-    return detailedItems;
-};
-
-
-const addToCart = async (user_id, game_id, quantity) => {
-    const existing = await pool.query(
-        `SELECT * FROM cart_items WHERE user_id = $1 AND game_id = $2`,
-        [user_id, game_id]
-    );
-
-    if (existing.rowCount > 0) {
-        const updated = await pool.query(
-            `UPDATE cart_items
-             SET quantity = quantity + $1
-             WHERE user_id = $2 AND game_id = $3
-             RETURNING *`,
-            [quantity, user_id, game_id]
-        );
-        return updated.rows[0];
-    }
-
-    const inserted = await pool.query(
         `INSERT INTO cart_items (user_id, game_id, quantity)
          VALUES ($1, $2, $3)
+         ON CONFLICT (user_id, game_id)
+         DO UPDATE SET quantity = cart_items.quantity + EXCLUDED.quantity
          RETURNING *`,
         [user_id, game_id, quantity]
     );
-    return inserted.rows[0];
+    return result;
 };
 
-const removeFromCart = async (user_id, game_id) => {
-    await pool.query(
-        `DELETE FROM cart_items WHERE user_id = $1 AND game_id = $2`,
-        [user_id, game_id]
+const getCartByUser = async (user_id) => {
+    console.log('GetCartByUser Service received:', { user_id });
+    const result = await pool.query(
+        `SELECT * FROM cart_items WHERE user_id = $1`,
+        [user_id]
     );
+    const items = result.rows;
+    if (items.length === 0) return [];
+
+    const gameIds = [...new Set(items.map(i => i.game_id))];
+
+    let gameMap = {};
+    try {
+        const response = await axios.get(`${GAME_SERVICE_URL}/api/games/bulk`, {
+            params: { ids: gameIds.join(',') }
+        });
+        console.log('Game data fetched successfully for getCartByUser:', response.data);
+        for (const game of response.data) {
+            gameMap[game.id] = { title: game.title, price: game.price };
+        }
+    } catch (err) {
+        console.error("Failed to fetch game data for cart items:", err.message);
+    }
+
+    return items.map(item => ({
+        ...item,
+        title: gameMap[item.game_id]?.title || `Game #${item.game_id}`,
+        price: gameMap[item.game_id]?.price || 0
+    }));
 };
 
-const clearCart = async (userId) => {
-    await pool.query(
-        `DELETE FROM cart_items WHERE user_id = $1`,
-        [userId]
-    );
+
+const clearCart = async (user_id) => {
+    await pool.query('DELETE FROM cart_items WHERE user_id = $1', [user_id]);
 };
 
 module.exports = {
-    getCartItems,
     addToCart,
-    removeFromCart,
-    clearCart
+    getCartByUser,
+    clearCart,
 };

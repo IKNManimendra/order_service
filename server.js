@@ -12,6 +12,9 @@ const PORT = process.env.PORT || 3002;
 app.use(cors());
 app.use(express.json());
 
+app.get('/', (req, res) => {
+    res.send('Order Service API is running');
+});
 app.use('/api/orders', orderRoutes);
 app.use('/api/cart', cartRoutes);
 

@@ -19,6 +19,13 @@ spec:
 
           ports:
             - containerPort: 3002
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
           env:
             - name: PGHOST
               value: "order-postgres-service.lugx-order.svc.cluster.local"

@@ -1,33 +1,79 @@
-name: CI for Order Service (Build & Push Only)
+name: Order Service CI/CD
 
 on:
   push:
+    paths:
+      - "**"
     branches:
-      - master
-
-env:
-  IMAGE_NAME: isurimani/lugx-assignment-service
+      - main
+  workflow_dispatch:
 
 jobs:
-  build-and-push:
+  build-and-deploy:
     runs-on: ubuntu-latest
 
+    env:
+      IMAGE_NAME: isurimani/lugx-assignment-service
+      SERVICE: order
+      VERSION: order-v1.1.${{ github.run_number }}
+      DEPLOYMENT_NAME: lugx-order-service
+      CONTAINER_NAME: order-service
+      NAMESPACE: lugx-order
+
     steps:
-      - name: Checkout code
+      - name: Checkout Code
         uses: actions/checkout@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
 
       - name: Log in to Docker Hub
-        uses: docker/login-action@v2
+        uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Build and Push Docker image
+      - name: Build and Push Docker Image
         run: |
-          IMAGE_TAG=order-v${{ github.run_number }}
-          docker build -t $IMAGE_NAME:$IMAGE_TAG .
-          docker push $IMAGE_NAME:$IMAGE_TAG
-          echo "✅ Image pushed: $IMAGE_NAME:$IMAGE_TAG"
+          docker build -t $IMAGE_NAME:$VERSION .
+          docker push $IMAGE_NAME:$VERSION
+          echo "✅ Image pushed: $IMAGE_NAME:$VERSION"
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: "latest"
+
+      - name: Configure GKE credentials
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: "${{ secrets.GCP_SA_KEY }}"
+
+      - name: Get GKE credentials
+        uses: google-github-actions/get-gke-credentials@v1
+        with:
+          cluster_name: ${{ secrets.GKE_CLUSTER_NAME }}
+          location: ${{ secrets.GKE_CLUSTER_LOCATION }}
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+
+      - name: Deploy to GKE with rolling update
+        run: |
+          kubectl set image deployment/$DEPLOYMENT_NAME \
+            $CONTAINER_NAME=$IMAGE_NAME:$VERSION \
+            -n $NAMESPACE
+
+      - name: Wait for rollout status
+        run: |
+          kubectl rollout status deployment/$DEPLOYMENT_NAME -n $NAMESPACE
+          echo "✅ Order Service deployed successfully."
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run Integration Tests
+        env:
+          GAME_SERVICE_URL: ${{ secrets.GAME_SERVICE_URL }}
+        run: |
+          echo "🔍 Running integration tests for Order Service"
+          echo "🔗 Reaching Game Service via: $GAME_SERVICE_URL"
+          npm test

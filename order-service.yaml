@@ -15,8 +15,7 @@ spec:
     spec:
       containers:
         - name: order-service
-          image: isurimani/lugx-assignment-service:order-v1.0.2
-
+          image: isurimani/lugx-assignment-service:order-v1.0.3
           ports:
             - containerPort: 3002
           resources:

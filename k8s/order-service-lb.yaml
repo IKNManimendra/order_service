@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: lugx-order-service-lb
+  namespace: lugx-order
+spec:
+  type: LoadBalancer
+  selector:
+    app: lugx-order
+  ports:
+    - protocol: TCP
+      port: 80 # External port exposed via LoadBalancer
+      targetPort: 3002 # Container port order service listens on

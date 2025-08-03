@@ -3,7 +3,7 @@ name: CI for Order Service (Build & Push Only)
 on:
   push:
     branches:
-      - main
+      - master
 
 env:
   IMAGE_NAME: isurimani/lugx-assignment-service

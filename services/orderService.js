@@ -1,6 +1,6 @@
 const axios = require('axios');
 const pool = require('../data/db');
-const cartService = require('./cartService');  // <-- FIX: import cartService
+const cartService = require('./cartService');
 
 const GAME_SERVICE_URL = process.env.GAME_SERVICE_URL || "http://lugx-game-service:30001";
 
